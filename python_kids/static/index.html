@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python Adventure 🐍</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+:root {
+  --bg: #0a0f1e;
+  --surface: #111827;
+  --card: #1a2332;
+  --border: rgba(255,255,255,0.07);
+  --accent: #00e5ff;
+  --green: #00ff88;
+  --red: #ff4d6d;
+  --yellow: #ffd60a;
+  --purple: #b47cff;
+  --text: #e8f0fe;
+  --muted: #64748b;
+  --font-d: 'Fredoka One', cursive;
+  --font-b: 'Nunito', sans-serif;
+  --r: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--font-b); background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+
+/* TOPBAR */
+.topbar {
+  height: 52px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 18px; gap: 14px; flex-shrink: 0;
+}
+.logo { font-family: var(--font-d); font-size: 1.25rem; color: var(--accent); display: flex; align-items: center; gap: 7px; }
+.logo-snake { animation: wiggle 2s ease-in-out infinite; display: inline-block; }
+@keyframes wiggle { 0%,100%{transform:rotate(-6deg)} 50%{transform:rotate(6deg)} }
+.sep { width: 1px; height: 26px; background: var(--border); }
+.ls-wrap { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.ls { background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font-b); font-weight: 700; font-size: 0.8rem; padding: 5px 9px; cursor: pointer; outline: none; }
+.ex-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.ex-tabs::-webkit-scrollbar { display: none; }
+.ex-tab { padding: 5px 13px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: var(--font-b); font-size: 0.76rem; font-weight: 800; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.ex-tab:hover { background: rgba(255,255,255,.04); color: var(--text); }
+.ex-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.ex-tab.solved { border-color: var(--green); color: var(--green); }
+.ex-tab.solved.active { background: var(--green); color: #000; }
+.tr { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.prog-txt { font-size: 0.76rem; font-weight: 800; color: var(--muted); }
+.prog-wrap { width: 80px; height: 5px; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg,var(--accent),var(--green)); border-radius: 99px; transition: width .4s; }
+
+/* WORKSPACE */
+.workspace { flex: 1; display: grid; grid-template-columns: 280px 1fr 320px; overflow: hidden; }
+
+/* LEFT */
+.desc-panel { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.desc-inner { overflow-y: auto; padding: 18px; flex: 1; }
+.ex-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,229,255,.1); border: 1px solid rgba(0,229,255,.25); border-radius: 99px; padding: 3px 11px; font-size: 0.7rem; font-weight: 800; color: var(--accent); margin-bottom: 11px; }
+.ex-title { font-family: var(--font-d); font-size: 1.45rem; line-height: 1.2; margin-bottom: 9px; }
+.ex-desc { font-size: 0.86rem; color: #94a3b8; line-height: 1.7; margin-bottom: 16px; }
+.ex-box { background: var(--card); border-radius: 10px; padding: 13px; border-left: 3px solid var(--accent); margin-bottom: 14px; }
+.ex-box .lbl { font-size: 0.66rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 7px; }
+.ex-box pre { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--green); white-space: pre-wrap; }
+
+/* CENTER */
+.editor-panel { display: flex; flex-direction: column; background: #1e1e2e; border-right: 1px solid var(--border); }
+.ed-toolbar { height: 42px; background: #161622; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 15px; gap: 9px; flex-shrink: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dr { background: #ff5f57; } .dy { background: #ffbd2e; } .dg { background: #28ca41; }
+.ed-fname { font-size: 0.76rem; color: var(--muted); font-weight: 700; }
+.ed-wrap { flex: 1; overflow: hidden; }
+.CodeMirror { height: 100% !important; font-size: 13.5px !important; font-family: 'Courier New', monospace !important; line-height: 1.6 !important; }
+.CodeMirror-scroll { height: 100% !important; }
+
+/* ACTION BAR */
+.action-bar { height: 50px; background: #161622; border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 14px; gap: 9px; flex-shrink: 0; }
+.btn { display: flex; align-items: center; gap: 6px; border: none; border-radius: 9px; font-family: var(--font-b); font-weight: 800; font-size: 0.83rem; padding: 8px 18px; cursor: pointer; transition: all .15s; }
+.btn:active { transform: scale(.96); }
+.btn-run { background: rgba(0,229,255,.12); color: var(--accent); border: 1px solid rgba(0,229,255,.3); }
+.btn-run:hover { background: rgba(0,229,255,.22); }
+.btn-stop { background: rgba(255,77,109,.12); color: var(--red); border: 1px solid rgba(255,77,109,.3); display: none; }
+.btn-stop:hover { background: rgba(255,77,109,.22); }
+.btn-submit { background: var(--green); color: #000; }
+.btn-submit:hover { background: #00dd77; }
+.btn-reset { background: rgba(255,255,255,.05); color: var(--muted); border: 1px solid var(--border); }
+.btn-reset:hover { color: var(--text); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.kb { font-size: 0.68rem; color: var(--muted); margin-left: auto; font-weight: 700; }
+
+/* TERMINAL */
+.terminal-panel { height: 220px; background: #0d0d18; border-top: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.term-toolbar { height: 34px; background: #111120; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 14px; gap: 8px; flex-shrink: 0; }
+.term-label { font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+.term-status { font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
+.ts-idle    { background: rgba(100,116,139,.15); color: var(--muted); }
+.ts-running { background: rgba(0,229,255,.15);   color: var(--accent); }
+.ts-waiting { background: rgba(255,214,10,.15);  color: var(--yellow); animation: pulse .8s ease-in-out infinite; }
+.ts-done    { background: rgba(0,255,136,.15);   color: var(--green); }
+.ts-error   { background: rgba(255,77,109,.15);  color: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.clr-btn { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 0.7rem; font-weight: 800; cursor: pointer; font-family: var(--font-b); }
+.clr-btn:hover { color: var(--text); }
+
+/* Terminal output area */
+.term-output {
+  flex: 1; overflow-y: auto; padding: 10px 14px;
+  font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-all;
+}
+.t-out  { color: #a8e6cf; }
+.t-err  { color: #ff8fa3; }
+.t-info { color: var(--muted); font-style: italic; }
+.t-in   { color: var(--yellow); }
+
+/* Input row — shown when program calls input() */
+.term-input-row {
+  display: none; align-items: center; gap: 0;
+  padding: 6px 14px; border-top: 1px solid var(--border);
+  background: rgba(255,214,10,.04); flex-shrink: 0;
+}
+.term-input-row.show { display: flex; }
+.term-prompt { font-family: 'Courier New', monospace; font-size: 13px; color: var(--yellow); white-space: nowrap; }
+.term-in {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-family: 'Courier New', monospace; font-size: 13px; color: var(--yellow);
+  caret-color: var(--yellow);
+}
+.term-enter { background: var(--yellow); color: #000; border: none; border-radius: 6px; font-family: var(--font-b); font-weight: 900; font-size: 0.72rem; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+
+/* RIGHT: Tests */
+.tests-panel { background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+.tests-head { padding: 15px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tests-head h3 { font-family: var(--font-d); font-size: 1.05rem; margin-bottom: 3px; }
+.tests-head p { font-size: 0.73rem; color: var(--muted); font-weight: 600; }
+.tests-inner { overflow-y: auto; padding: 14px; flex: 1; }
+
+.status-banner { border-radius: 12px; padding: 14px; margin-bottom: 14px; display: none; align-items: center; gap: 11px; }
+.status-banner.show { display: flex; }
+.status-banner.pass { background: rgba(0,255,136,.1); border: 1px solid rgba(0,255,136,.3); }
+.status-banner.fail { background: rgba(255,77,109,.1); border: 1px solid rgba(255,77,109,.3); }
+.si { font-size: 1.8rem; }
+.st { flex: 1; }
+.st .big { font-family: var(--font-d); font-size: 1.05rem; }
+.st .sml { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+.status-banner.pass .big { color: var(--green); }
+.status-banner.fail .big { color: var(--red); }
+
+.tc { background: var(--card); border-radius: 10px; padding: 11px 13px; margin-bottom: 9px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--border); transition: border-color .3s; }
+.tc.pass { border-color: rgba(0,255,136,.3); }
+.tc.fail { border-color: rgba(255,77,109,.3); }
+.td-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background .3s; }
+.tc.pass .td-dot { background: var(--green); box-shadow: 0 0 7px var(--green); }
+.tc.fail .td-dot { background: var(--red); box-shadow: 0 0 7px var(--red); }
+.td-desc { font-size: 0.78rem; font-weight: 700; color: #94a3b8; line-height: 1.4; }
+.tc.pass .td-desc { color: #a8e6cf; }
+.tc.fail .td-desc { color: #ffb3be; }
+.td-chk { margin-left: auto; font-size: 0.95rem; }
+.next-btn { width: 100%; background: var(--green); color: #000; border: none; border-radius: 10px; font-family: var(--font-b); font-weight: 900; font-size: 0.88rem; padding: 12px; cursor: pointer; margin-top: 12px; display: none; transition: all .15s; }
+.next-btn:hover { background: #00dd77; transform: translateY(-1px); }
+.next-btn.show { display: block; }
+
+
+/* Confetti */
+.cfwrap { position: fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:999; display:none; }
+.cfwrap.show { display:block; }
+.cfp { position:absolute; border-radius:2px; animation: cffall 1.5s ease-in forwards; }
+@keyframes cffall { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
+
+/* Spin */
+.spin { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.3); border-top-color:currentColor; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:99px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><span class="logo-snake"><img src="/static/Untitled.jpg" style="height:32px; border-radius:6px;"></span> Python Adventure</div>
+  <div class="sep"></div>
+  <div class="ls-wrap">📚
+    <select class="ls" id="lessonSel" onchange="loadLesson(this.value)">
+      <option value="1">1 · Hello, Python!</option>
+      <option value="2">2 · Variables &amp; Data</option>
+      <option value="3">3 · Math &amp; Numbers</option>
+      <option value="4">4 · If / Else Logic</option>
+      <option value="5">5 · Loops</option>
+      <option value="6">6 · Lists</option>
+      <option value="7">7 · Functions</option>
+      <option value="8">8 · Dictionaries</option>
+      <option value="9">9 · String Methods</option>
+      <option value="10">10 · While Loops</option>
+      <option value="11">11 · Recursion ⚡</option>
+      <option value="12">12 · Classes ⚡</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <div class="ex-tabs" id="exTabs"></div>
+  <div class="tr">
+    <span class="prog-txt" id="progTxt">0/0</span>
+    <div class="prog-wrap"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+    <a href="/playground" style="display:flex;align-items:center;gap:6px;background:rgba(180,124,255,.15);border:1px solid rgba(180,124,255,.35);border-radius:9px;padding:6px 13px;color:#b47cff;font-family:var(--font-b);font-weight:800;font-size:0.78rem;text-decoration:none;white-space:nowrap;" title="Free Coding Playground">🚀 Playground</a>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <!-- LEFT -->
+  <div class="desc-panel">
+    <div class="desc-inner" id="descInner">
+      <div class="ex-badge">📚 Pick an exercise</div>
+      <div class="ex-title">Welcome! 👋</div>
+      <div class="ex-desc">Select a lesson from the top bar to get started.</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="editor-panel">
+    <div class="ed-toolbar">
+      <div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div>
+      <span class="ed-fname" id="edFname">solution.py</span>
+    </div>
+    <div class="ed-wrap"><textarea id="codeEditor"></textarea></div>
+    <div class="action-bar">
+      <button class="btn btn-run"    id="runBtn"    onclick="runCode()">▶ Run</button>
+      <button class="btn btn-stop"   id="stopBtn"   onclick="stopCode()">■ Stop</button>
+      <button class="btn btn-submit" id="submitBtn" onclick="submitCode()">✓ Submit</button>
+      <button class="btn btn-reset"  onclick="resetCode()">↺ Reset</button>
+      <span class="kb">Ctrl+Enter to run</span>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="terminal-panel">
+      <div class="term-toolbar">
+        <span class="term-label">📟 Terminal</span>
+        <span class="term-status ts-idle" id="termStatus">idle</span>
+        <button class="clr-btn" onclick="clearTerm()">Clear</button>
+      </div>
+      <div class="term-output" id="termOutput">
+        <span class="t-info">// Run your code — output appears here. input() works live! ⌨️</span>
+      </div>
+      <!-- Live input row — appears when program is waiting for input() -->
+      <div class="term-input-row" id="inputRow">
+        <span class="term-prompt" id="inputPrompt">❯ </span>
+        <input class="term-in" id="termIn" autocomplete="off" autocorrect="off" spellcheck="false"
+               placeholder="type here and press Enter…"
+               onkeydown="if(event.key==='Enter') sendInput()">
+        <button class="term-enter" onclick="sendInput()">Enter ↵</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="tests-panel">
+    <div class="tests-head">
+      <h3>🧪 Test Cases</h3>
+      <p>All tests must pass to advance!</p>
+    </div>
+    <div class="tests-inner" id="testsInner">
+      <div style="color:var(--muted);font-size:.8rem;font-weight:600;text-align:center;margin-top:40px;">
+        Hit Submit to run tests 🚀
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="cfwrap" id="cfwrap"></div>
+
+<script>
+// ── SOCKET ──────────────────────────────────────────────────────────────
+const socket = io({ transports: ['websocket', 'polling'] });
+const SID    = localStorage.getItem('pka_sid') || 'kid_' + Math.random().toString(36).slice(2, 9);
+localStorage.setItem('pka_sid', SID);
+
+socket.on('connect', () => {
+  socket.emit('join', { sid: SID });
+});
+
+// ── STATE ────────────────────────────────────────────────────────────────
+let exercises      = {};
+let currentEx      = null;
+let currentLesson  = 1;
+let solved         = new Set(JSON.parse(localStorage.getItem('pka_solved') || '[]'));
+let editor         = null;
+let isRunning      = false;
+let outputBuffer   = '';    // accumulate chars until we can detect prompt
+
+// ── INIT CODEMIRROR ───────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+    mode: 'python', theme: 'dracula',
+    lineNumbers: true, matchBrackets: true, autoCloseBrackets: true,
+    indentUnit: 4, indentWithTabs: false,
+    extraKeys: { 'Ctrl-Enter': runCode, 'Tab': cm => cm.replaceSelection('    ') }
+  });
+  fetch('/api/exercises')
+    .then(r => r.json())
+    .then(data => { exercises = data; loadLesson(1); })
+    .catch(() => appendTerm('❌ Cannot reach server — is server.py running?\n', 'err'));
+});
+
+// ── SOCKET EVENTS ──────────────────────────────────────────────────────────
+let inputDebounce = null;
+let inputTimeoutTimer = null;
+const INPUT_TIMEOUT_SECS = 60;
+
+socket.on('output', data => {
+  appendTermRaw(data.text, data.type === 'error' ? 'err' : 'out');
+
+  // Show input row only when output STOPS arriving for 300ms
+  // That means Python is blocked waiting for input()
+  if (isRunning) {
+    clearTimeout(inputDebounce);
+    inputDebounce = setTimeout(() => {
+      if (isRunning) showInputRow();
+    }, 300);
+  }
+});
+
+socket.on('run_done', () => {
+  isRunning = false;
+  clearTimeout(inputDebounce);
+  hideInputRow();
+  setStatus('done');
+  setRunBtns(false);
+  appendTerm('\n', 'info');
+});
+
+socket.on('submit_result', data => {
+  renderTests(data);
+  if (data.passed) {
+    solved.add(currentEx);
+    localStorage.setItem('pka_solved', JSON.stringify([...solved]));
+    updateProgress();
+    const tab = document.getElementById('tab_' + currentEx);
+    if (tab) { tab.classList.add('solved'); }
+    launchConfetti();
+  }
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').innerHTML = '✓ Submit';
+});
+
+// ── RUN ────────────────────────────────────────────────────────────────────
+function runCode() {
+  const code = editor.getValue();
+  if (currentEx) localStorage.setItem('pka_code_' + currentEx, code);
+  clearTerm();
+  outputBuffer = '';
+  isRunning = true;
+  setRunBtns(true);
+  setStatus('running');
+  socket.emit('run_code', { sid: SID, code });
+}
+
+// ── STOP ───────────────────────────────────────────────────────────────────
+function stopCode() {
+  socket.emit('kill_code', { sid: SID });
+  isRunning = false;
+  hideInputRow();
+  setRunBtns(false);
+  setStatus('idle');
+  appendTerm('\n⛔ Stopped.\n', 'info');
+}
+
+// ── SEND INPUT ─────────────────────────────────────────────────────────────
+function sendInput() {
+  const inp  = document.getElementById('termIn');
+  const text = inp.value;
+  inp.value  = '';
+  clearTimeout(inputTimeoutTimer);
+  // Echo what student typed in yellow
+  appendTerm(text + '\n', 'in');
+  socket.emit('send_input', { sid: SID, text });
+}
+
+// ── SUBMIT ─────────────────────────────────────────────────────────────────
+function submitCode() {
+  const code = editor.getValue();
+  if (currentEx) localStorage.setItem('pka_code_' + currentEx, code);
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').innerHTML = '<span class="spin"></span> Testing…';
+  document.getElementById('testsInner').innerHTML =
+    '<div style="color:var(--yellow);font-size:.8rem;font-weight:700;text-align:center;margin-top:30px">⏳ Running tests…</div>';
+  socket.emit('submit_code', { sid: SID, exercise_id: currentEx, code });
+}
+
+// ── RESET ──────────────────────────────────────────────────────────────────
+function resetCode() {
+  if (!currentEx) return;
+  const ex = exercises[currentEx];
+  if (ex && confirm('Reset to starter code?')) {
+    editor.setValue(ex.starter || '# Write your code here\n');
+    localStorage.removeItem('pka_code_' + currentEx);
+    clearTerm();
+  }
+}
+
+// ── LOAD LESSON ────────────────────────────────────────────────────────────
+function loadLesson(n) {
+  currentLesson = parseInt(n);
+  document.getElementById('lessonSel').value = n;
+  const exs = Object.entries(exercises)
+    .filter(([id, e]) => e.lesson === currentLesson)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  const tabs = document.getElementById('exTabs');
+  tabs.innerHTML = '';
+  exs.forEach(([id, ex], i) => {
+    const btn = document.createElement('button');
+    btn.className = 'ex-tab' + (solved.has(id) ? ' solved' : '');
+    btn.textContent = `Ex ${i+1}`;
+    btn.title = ex.title;
+    btn.id    = 'tab_' + id;
+    btn.onclick = () => loadExercise(id);
+    tabs.appendChild(btn);
+  });
+  if (exs.length) loadExercise(exs[0][0]);
+  updateProgress();
+}
+
+// ── LOAD EXERCISE ──────────────────────────────────────────────────────────
+function loadExercise(id) {
+  currentEx = id;
+  const ex  = exercises[id];
+  if (!ex) return;
+
+  document.querySelectorAll('.ex-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById('tab_' + id);
+  if (tab) tab.classList.add('active');
+
+  document.getElementById('descInner').innerHTML = `
+    <div class="ex-badge">📚 Lesson ${ex.lesson}</div>
+    <div class="ex-title">${esc(ex.title)}</div>
+    <div class="ex-desc">${esc(ex.description)}</div>
+    <div class="ex-box">
+      <div class="lbl">📋 Your Task</div>
+      <pre>${esc(ex.description)}</pre>
+    </div>
+    <div class="ex-box" style="border-left-color:var(--yellow);margin-top:12px">
+      <div class="lbl" style="color:var(--yellow)">⌨️ input() works!</div>
+      <pre style="color:#cbd5e1;font-size:.78rem">Just run your code.\nWhen input() is called,\na box appears — type your\nanswer and press Enter!</pre>
+    </div>
+  `;
+
+  document.getElementById('edFname').textContent = `ex_${id}.py`;
+  const saved = localStorage.getItem('pka_code_' + id);
+  editor.setValue(saved || ex.starter || '# Write your code here\n');
+  editor.focus();
+
+  document.getElementById('testsInner').innerHTML =
+    '<div style="color:var(--muted);font-size:.8rem;font-weight:600;text-align:center;margin-top:40px">Hit Submit to run tests 🚀</div>';
+
+  clearTerm();
+  hideInputRow();
+  updateProgress();
+}
+
+// ── RENDER TESTS ───────────────────────────────────────────────────────────
+function renderTests(data) {
+  const p = data.passed;
+  let h   = `
+    <div class="status-banner show ${p ? 'pass' : 'fail'}">
+      <div class="si">${p ? '🎉' : '❌'}</div>
+      <div class="st">
+        <div class="big">${p ? 'All Tests Passed!' : 'Not Quite Yet…'}</div>
+        <div class="sml">${p ? 'Amazing work! 🚀' : 'Fix the failing tests below'}</div>
+      </div>
+    </div>`;
+  (data.results || []).forEach((r, i) => {
+    h += `<div class="tc ${r.passed ? 'pass' : 'fail'}">
+      <div class="td-dot"></div>
+      <div class="td-desc">Test ${i+1}: ${esc(r.desc)}</div>
+      <div class="td-chk">${r.passed ? '✅' : '❌'}</div>
+    </div>`;
+  });
+
+  if (p) {
+    const ids  = Object.keys(exercises).filter(id => exercises[id].lesson === currentLesson).sort();
+    const idx  = ids.indexOf(currentEx);
+    const next = ids[idx + 1];
+    if (next) {
+      h += `<button class="next-btn show" onclick="loadExercise('${next}')">→ Next: ${esc(exercises[next].title)}</button>`;
+    } else if (currentLesson < 12) {
+      h += `<button class="next-btn show" onclick="document.getElementById('lessonSel').value=${currentLesson+1};loadLesson(${currentLesson+1})">🎓 Next Lesson ${currentLesson+1} →</button>`;
+    } else {
+      h += `<div style="text-align:center;padding:14px;color:var(--green);font-family:var(--font-d);font-size:1.05rem">🏆 All lessons complete!</div>`;
+    }
+  }
+  document.getElementById('testsInner').innerHTML = h;
+}
+
+// ── TERMINAL HELPERS ───────────────────────────────────────────────────────
+function appendTermRaw(text, type) {
+  const el  = document.getElementById('termOutput');
+  const cls = type === 'err' ? 't-err' : type === 'in' ? 't-in' : type === 'info' ? 't-info' : 't-out';
+  const sp  = document.createElement('span');
+  sp.className = cls;
+  sp.textContent = text;
+  el.appendChild(sp);
+  el.scrollTop = el.scrollHeight;
+}
+function appendTerm(text, type) { appendTermRaw(text, type); }
+function clearTerm() {
+  document.getElementById('termOutput').innerHTML =
+    '<span class="t-info">// Ready ▶\n</span>';
+}
+
+function showInputRow() {
+  const row = document.getElementById('inputRow');
+  row.classList.add('show');
+  setStatus('waiting');
+  setTimeout(() => document.getElementById('termIn').focus(), 50);
+  clearTimeout(inputTimeoutTimer);
+  inputTimeoutTimer = setTimeout(() => {
+    if (isRunning) {
+      appendTerm(`\n⏱️ No input for ${INPUT_TIMEOUT_SECS}s — program stopped.\n`, 'err');
+      stopCode();
+    }
+  }, INPUT_TIMEOUT_SECS * 1000);
+}
+function hideInputRow() {
+  document.getElementById('inputRow').classList.remove('show');
+  document.getElementById('termIn').value = '';
+  clearTimeout(inputTimeoutTimer);
+}
+
+function setStatus(s) {
+  const el = document.getElementById('termStatus');
+  el.className = 'term-status';
+  const map = { idle:'ts-idle', running:'ts-running', waiting:'ts-waiting', done:'ts-done', error:'ts-error' };
+  el.classList.add(map[s] || 'ts-idle');
+  const labels = { idle:'idle', running:'▶ running…', waiting:'⌨ waiting for input…', done:'✓ done', error:'error' };
+  el.textContent = labels[s] || s;
+}
+
+function setRunBtns(running) {
+  document.getElementById('runBtn').style.display  = running ? 'none' : 'flex';
+  document.getElementById('stopBtn').style.display = running ? 'flex' : 'none';
+  document.getElementById('submitBtn').disabled    = running;
+}
+
+// ── UTILS ──────────────────────────────────────────────────────────────────
+function updateProgress() {
+  const ids  = Object.keys(exercises).filter(id => exercises[id].lesson === currentLesson);
+  const done = ids.filter(id => solved.has(id)).length;
+  document.getElementById('progTxt').textContent  = `${done}/${ids.length}`;
+  document.getElementById('progFill').style.width = ids.length ? `${done/ids.length*100}%` : '0%';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── CONFETTI ───────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const el = document.getElementById('cfwrap');
+  el.innerHTML = '';
+  el.classList.add('show');
+  const cols = ['#00e5ff','#00ff88','#ffd60a','#b47cff','#ff4d6d','#ff9f43'];
+  for (let i = 0; i < 90; i++) {
+    const p = document.createElement('div');
+    p.className = 'cfp';
+    p.style.cssText = `left:${Math.random()*100}%;top:${-10-Math.random()*30}px;
+      background:${cols[Math.floor(Math.random()*cols.length)]};
+      width:${5+Math.random()*8}px;height:${5+Math.random()*8}px;
+      animation-duration:${1+Math.random()*1}s;animation-delay:${Math.random()*.5}s;
+      border-radius:${Math.random()>.5?'50%':'2px'};`;
+    el.appendChild(p);
+  }
+  setTimeout(() => { el.classList.remove('show'); el.innerHTML=''; }, 2500);
+}
+
+</script>
+
+</body>
+</html>
