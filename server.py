@@ -2,22 +2,22 @@
 Python Kids - Flask + SocketIO Server
 Real interactive terminal — input() works live!
 
-Install:  pip install flask flask-socketio eventlet gunicorn
+Install:  pip install flask flask-socketio
 Run:      python server.py
 Open:     http://localhost:5000
 """
-
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 from flask import Flask, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
 import subprocess, sys, os, tempfile, threading, re, json
 
-app = Flask(__name__, static_folder='python_kids/static')
 
+app    = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'pythonkids2025'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', engineio_logger=False)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', engineio_logger=False)
+
 
 # active sessions: sid → {proc, tmp}
 sessions = {}
